@@ -78,21 +78,19 @@ namespace NanaBot
             if (message.Content.Trim().Equals("What?", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            // Define regex:
-            // group1 = emoji codes,
-            // group2 = allowed punctuation (.,!?),
-            // group3 = everything else (words or other punctuation)
-            string pattern = @"(:\w+:)|([.,!?])|(\S+)";
+            // Define regex to preserve custom emojis (<:name:id> or <a:name:id>), shorthand :name:, and punctuation . , ! ?
+            string pattern = @"(<a?:\w+:\d+>)|(:\w+:)|([.,!?])|(\S+)";
             string newContent = Regex.Replace(message.Content, pattern, match =>
             {
-                if (match.Groups[1].Success)
-                    return match.Value; // emoji code, leave untouched
-                if (match.Groups[2].Success)
-                    return match.Value; // allowed punctuation, leave in
-                // any other token (words or other punctuation) replaced with Nana
+                if (match.Groups[1].Success)    // custom emoji
+                    return match.Value;
+                if (match.Groups[2].Success)    // shorthand emoji :name:
+                    return match.Value;
+                if (match.Groups[3].Success)    // allowed punctuation
+                    return match.Value;
+                // everything else
                 return "Nana";
             });
-
 
             // Delete original message
             try
