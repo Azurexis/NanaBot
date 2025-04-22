@@ -1,1 +1,1 @@
-worker: dotnet run --configuration Release
+worker: cd heroku_output && dotnet NanaBot.dll
