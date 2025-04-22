@@ -5,6 +5,7 @@ using Discord;
 using Discord.WebSocket;
 using Discord.Webhook;
 using Microsoft.Extensions.Configuration;
+using System.Text.RegularExpressions;
 
 namespace NanaBot
 {
