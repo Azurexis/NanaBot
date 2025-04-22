@@ -73,16 +73,34 @@ namespace NanaBot
             if (textChannel.Id != _channelId)
                 return;
 
+            // Don't process single-word "What?" messages
+            if (message.Content.Trim().Equals("What?", StringComparison.OrdinalIgnoreCase))
+                return;
+
             // Count words
             var words = message.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
             if (words.Length == 0)
                 return;
 
-            var newContent = string.Join(' ', Enumerable.Repeat("Nana", words.Length));
+            var newContent = Regex.Replace(message.Content, @"\b[\w']+\b", "Nana");
 
             // Delete original message
-            try { await message.DeleteAsync(); }
-            catch (Exception ex) { Console.WriteLine($"Delete failed: {ex.Message}"); return; }
+            try 
+            { 
+                await message.DeleteAsync();
+
+                Console.WriteLine("[Debug] Deleted original.");
+            }
+            catch (Exception ex) 
+            { 
+                Console.WriteLine($"Delete failed: {ex.Message}"); 
+
+                return; 
+            }
+
+            //Insert delay
+            await Task.Delay(500);
 
             // Fetch or create webhook
             var webhooks = await textChannel.GetWebhooksAsync();
