@@ -78,16 +78,24 @@ namespace NanaBot
             if (message.Content.Trim().Equals("What?", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            // Count words
-            var words = message.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            // Define regex:
+            // group1 = emoji codes,
+            // group2 = allowed punctuation (.,!?),
+            // group3 = everything else (words or other punctuation)
+            string pattern = @"(:\w+:)|([.,!?])|(\S+)";
+            string newContent = Regex.Replace(message.Content, pattern, match =>
+            {
+                if (match.Groups[1].Success)
+                    return match.Value; // emoji code, leave untouched
+                if (match.Groups[2].Success)
+                    return match.Value; // allowed punctuation, leave in
+                // any other token (words or other punctuation) replaced with Nana
+                return "Nana";
+            });
 
-            if (words.Length == 0)
-                return;
-
-            var newContent = Regex.Replace(message.Content, @"\b[\w']+\b", "Nana");
 
             // Delete original message
-            try 
+            try
             { 
                 await message.DeleteAsync();
 
