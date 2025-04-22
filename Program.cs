@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
@@ -10,24 +10,27 @@ namespace NanaBot
 {
     class Program
     {
+        //Variables
         private DiscordSocketClient _client = null!;
         private IConfigurationRoot _config = null!;
         private string _token = null!;
-        private string _channelName = null!;
+        private ulong _channelId;
 
         static Task Main(string[] args) => new Program().MainAsync();
 
         public async Task MainAsync()
         {
-            // Load configuration from environment variables (or appsettings, if desired)
-            _config = new ConfigurationBuilder()
-                .AddEnvironmentVariables()
-                .Build();
+            //Load configuration variables
+            _config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
 
+            //Set variables
             _token = _config["DISCORD_TOKEN"]
                 ?? throw new InvalidOperationException("Environment variable 'DISCORD_TOKEN' must be set.");
-            _channelName = _config["TARGET_CHANNEL_NAME"]
-                ?? throw new InvalidOperationException("Environment variable 'TARGET_CHANNEL_NAME' must be set.");
+
+            string channelIdString = _config["TARGET_CHANNEL_ID"]
+                ?? throw new InvalidOperationException("TARGET_CHANNEL_ID must be set");
+
+            _channelId = ulong.Parse(channelIdString);
 
             // Initialize Discord client with necessary intents
             _client = new DiscordSocketClient(new DiscordSocketConfig
@@ -67,7 +70,7 @@ namespace NanaBot
                 return;
 
             // Filter by channel name
-            if (!string.Equals(textChannel.Name, _channelName, StringComparison.OrdinalIgnoreCase))
+            if (textChannel.Id != _channelId)
                 return;
 
             // Count words
