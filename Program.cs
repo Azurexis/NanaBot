@@ -128,6 +128,7 @@ namespace NanaBot
         {
             //Prepare variables
             var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+            var webhookSecret = Environment.GetEnvironmentVariable("SECRET");
 
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseUrls($"http://*:{port}");
@@ -137,10 +138,21 @@ namespace NanaBot
             //Process echo
             app.MapPost("/", async ctx =>
             {
+                //Check secret
+                var auth = ctx.Request.Headers["Authorization"].FirstOrDefault();
+
+                if (string.IsNullOrEmpty(webhookSecret) || auth != webhookSecret)
+                {
+                    ctx.Response.StatusCode = 401;
+                    return;
+                }
+
+                //Read message
                 using var reader = new StreamReader(ctx.Request.Body);
 
                 var content = await reader.ReadToEndAsync();
 
+                //Post to Discord
                 if (!string.IsNullOrWhiteSpace(content))
                 {
                     var channel = discordSocketClient.GetChannel(discordGamelogChannelID)
@@ -148,8 +160,6 @@ namespace NanaBot
 
                     if (channel != null)
                         await channel.SendMessageAsync(content.Trim());
-
-                    ctx.Response.StatusCode = 200;
                 }
             });
 
