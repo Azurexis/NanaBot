@@ -12,115 +12,157 @@ namespace NanaBot
     class Program
     {
         //Variables
-        private DiscordSocketClient _client = null!;
-        private IConfigurationRoot _config = null!;
-        private string _token = null!;
-        private ulong _channelId;
+        private static Task Main(string[] args) => new Program().MainAsync();
 
-        static Task Main(string[] args) => new Program().MainAsync();
+        private IConfigurationRoot configuration = null!;
+
+        private DiscordSocketClient discordSocketClient = null!;
+        private string discordToken = null!;
+        private ulong discordNanaChannelID;
+        private ulong discordGamelogChannelID;
 
         public async Task MainAsync()
         {
-            //Load configuration variables
-            _config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+            //Set configuration
+            configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
 
-            //Set variables
-            _token = _config["DISCORD_TOKEN"]
-                ?? throw new InvalidOperationException("Environment variable 'DISCORD_TOKEN' must be set.");
-
-            string channelIdString = _config["TARGET_CHANNEL_ID"]
-                ?? throw new InvalidOperationException("TARGET_CHANNEL_ID must be set");
-
-            _channelId = ulong.Parse(channelIdString);
+            //Set configuration variables
+            discordToken = configuration["DISCORD_TOKEN"];
+            discordNanaChannelID = ulong.Parse(configuration["NANA_CHANNEL_ID"]);
+            discordGamelogChannelID = ulong.Parse(configuration["GAMELOG_CHANNEL_ID"]);
 
             // Initialize Discord client with necessary intents
-            _client = new DiscordSocketClient(new DiscordSocketConfig
+            discordSocketClient = new DiscordSocketClient(new DiscordSocketConfig
             {
                 GatewayIntents = GatewayIntents.Guilds
                                | GatewayIntents.GuildMessages
                                | GatewayIntents.MessageContent
             });
 
-            // Log events to console
-            _client.Log += msg =>
-            {
-                Console.WriteLine(msg.ToString());
-                return Task.CompletedTask;
-            };
+            //Initialize discord socket client
+            discordSocketClient.MessageReceived += Discord_HandleMessageAsync;
 
-            // Hook into incoming messages
-            _client.MessageReceived += HandleMessageAsync;
+            await discordSocketClient.LoginAsync(TokenType.Bot, discordToken);
+            await discordSocketClient.StartAsync();
 
-            // Authenticate and connect
-            await _client.LoginAsync(TokenType.Bot, _token);
-            await _client.StartAsync();
+            //Start http listener
+            Http_StartListener();
 
-            Console.WriteLine("Bot is ready. Listening for messages...");
-            // Keep the program alive
+            //Console
+            Console.WriteLine("[Debug] NanaBot successfully set up!");
+
+            //Loop
             await Task.Delay(Timeout.Infinite);
         }
 
-        private async Task HandleMessageAsync(SocketMessage message)
+        private async Task Discord_HandleMessageAsync(SocketMessage _message)
         {
-            // Skip bot and webhook messages
-            if (message.Author.Id == _client.CurrentUser.Id || message.Source == MessageSource.Webhook)
+            //Don't process own messages
+            if (_message.Author.Id == discordSocketClient.CurrentUser.Id)
                 return;
 
-            // Only process text channels
-            if (message.Channel is not SocketTextChannel textChannel)
+            //Don't process webhooks
+            if (_message.Source == MessageSource.Webhook)
                 return;
 
-            // Filter by channel name
-            if (textChannel.Id != _channelId)
+            //Don't process messages in non-text channels
+            if (_message.Channel is not SocketTextChannel textChannel)
+                return;
+
+            //Don't process messages not in the right channel ID
+            if (textChannel.Id != discordNanaChannelID)
                 return;
 
             // Don't process single-word "What?" messages
-            if (message.Content.Trim().Equals("What?", StringComparison.OrdinalIgnoreCase))
+            if (_message.Content.Trim().Equals("What?", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            // Regex to preserve only Nana emojis and punctuation .,!?; everything else -> Nana
-            // Group1: custom Nana emoji formats <:nana...:id> or <a:nana...:id>
-            // Group2: shortcode Nana emojis :nana...:
-            // Group3: allowed punctuation .,!?;
-            // Group4: other tokens to replace
-            string pattern = @"(<a?:nana\w*:\d+>)|(:nana\w*?:)|([\.,!\?])|(\S+)";
-            string newContent = Regex.Replace(message.Content, pattern, match =>
+            //Regex: Preserve Nana emojis and specific punctuation (. , ! ?), replace everything else with "Nana"
+            string regexPattern = @"(<a?:nana\w*:\d+>)|(:nana\w*?:)|([\.,!\?])|(\S+)";
+
+            string modifiedMessage = Regex.Replace(_message.Content, regexPattern, match =>
             {
-                if (match.Groups[1].Success) return match.Value;
-                if (match.Groups[2].Success) return match.Value;
-                if (match.Groups[3].Success) return match.Value;
+                if (match.Groups[1].Success)
+                    return match.Value;
+                if (match.Groups[2].Success)
+                    return match.Value;
+                if (match.Groups[3].Success)
+                    return match.Value;
+
                 return "Nana";
             });
 
-            // Delete original message
+            //Delete original message
             try
-            { 
-                await message.DeleteAsync();
+            {
+                await _message.DeleteAsync();
 
-                Console.WriteLine("[Debug] Deleted original.");
+                Console.WriteLine("[Debug] Deleted original message (" + _message.Content + ").");
             }
-            catch (Exception ex) 
-            { 
-                Console.WriteLine($"Delete failed: {ex.Message}"); 
+            catch (Exception ex)
+            {
+                Console.WriteLine("[Debug] Delete failed: " + ex.Message);
 
-                return; 
+                return;
             }
 
-            //Insert delay
-            await Task.Delay(500);
-
-            // Fetch or create webhook
+            //Set webhook
             var webhooks = await textChannel.GetWebhooksAsync();
             var webhookInfo = webhooks.FirstOrDefault(w => w.Name == "NanaWebhook")
                               ?? await textChannel.CreateWebhookAsync("NanaWebhook");
 
-            // Send transformed message via webhook
+            //Send modified message via webhook
             var webhookClient = new DiscordWebhookClient(webhookInfo.Id, webhookInfo.Token!);
             await webhookClient.SendMessageAsync(
-                newContent,
-                username: message.Author.Username,
-                avatarUrl: message.Author.GetAvatarUrl() ?? message.Author.GetDefaultAvatarUrl()
+                modifiedMessage,
+                username: _message.Author.Username,
+                avatarUrl: _message.Author.GetAvatarUrl() ?? _message.Author.GetDefaultAvatarUrl()
             );
+        }
+
+        private void Http_StartListener()
+        {
+            //Prepare variables
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+
+            var listener = new HttpListener();
+            listener.Prefixes.Add($"http://*:{port}/");
+            listener.Start();
+
+            Console.WriteLine("[Debug] Started Http Listener.");
+
+            //Run task
+            _ = Task.Run(async () =>
+            {
+                //Loop
+                while (true)
+                {
+                    var context = await listener.GetContextAsync();
+                    var request = context.Request;
+                    var response = context.Response;
+
+                    if (request.HttpMethod == "POST")
+                    {
+                        string content;
+
+                        using (var reader = new StreamReader(request.InputStream))
+                            content = await reader.ReadToEndAsync();
+
+                        if (!string.IsNullOrWhiteSpace(content))
+                        {
+                            var channel = discordSocketClient.GetChannel(discordGamelogChannelID) as IMessageChannel;
+
+                            if (channel != null)
+                                await channel.SendMessageAsync(content.Trim());
+
+                            response.StatusCode = 200;
+                        }
+
+                    }
+
+                    response.Close();
+                }
+            });
         }
     }
 }
