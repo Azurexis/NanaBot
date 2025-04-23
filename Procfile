@@ -1,1 +1,1 @@
-worker: ./heroku_output/NanaBot
+web: ./heroku_output/NanaBot
