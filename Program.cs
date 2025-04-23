@@ -63,9 +63,23 @@ namespace NanaBot
         {
             //Bot mentioned -> Respond with Nana-ish
             if (_message.MentionedUsers.Any(u => u.Id == discordSocketClient.CurrentUser.Id))
-            { 
-                await _message.Channel.SendMessageAsync("Nana!!");
+            {
+                //Random messages
+                string[] _pingReplies = new string[]
+                {
+                    "Nana.",
+                    "Nana!!",
+                    "Nana?",
+                    "Nana, Nana Nana.",
+                    "Nana Nana!"
+                };
 
+                Random _rng = new Random();
+
+                //Send message
+                await _message.Channel.SendMessageAsync(_pingReplies[_rng.Next(_pingReplies.Length)]);
+
+                //Return
                 return;
             }
 
