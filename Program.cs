@@ -1,11 +1,14 @@
 using System;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
+using System.IO;
 using Discord;
 using Discord.WebSocket;
 using Discord.Webhook;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using System.Text.RegularExpressions;
 
 namespace NanaBot
@@ -46,8 +49,8 @@ namespace NanaBot
             await discordSocketClient.LoginAsync(TokenType.Bot, discordToken);
             await discordSocketClient.StartAsync();
 
-            //Start http listener
-            Http_StartListener();
+            //Start listener
+            StartListener();
 
             //Console
             Console.WriteLine("[Debug] NanaBot successfully set up!");
@@ -121,49 +124,37 @@ namespace NanaBot
             );
         }
 
-        private void Http_StartListener()
+        private void StartListener()
         {
             //Prepare variables
             var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
 
-            var listener = new HttpListener();
-            listener.Prefixes.Add($"http://*:{port}/");
-            listener.Start();
+            var builder = WebApplication.CreateBuilder();
+            builder.WebHost.UseUrls($"http://*:{port}");
 
-            Console.WriteLine("[Debug] Started Http Listener.");
+            var app = builder.Build();
 
-            //Run task
-            _ = Task.Run(async () =>
+            //Process echo
+            app.MapPost("/", async ctx =>
             {
-                //Loop
-                while (true)
+                using var reader = new StreamReader(ctx.Request.Body);
+
+                var content = await reader.ReadToEndAsync();
+
+                if (!string.IsNullOrWhiteSpace(content))
                 {
-                    var context = await listener.GetContextAsync();
-                    var request = context.Request;
-                    var response = context.Response;
+                    var channel = discordSocketClient.GetChannel(discordGamelogChannelID)
+                                      as IMessageChannel;
 
-                    if (request.HttpMethod == "POST")
-                    {
-                        string content;
+                    if (channel != null)
+                        await channel.SendMessageAsync(content.Trim());
 
-                        using (var reader = new StreamReader(request.InputStream))
-                            content = await reader.ReadToEndAsync();
-
-                        if (!string.IsNullOrWhiteSpace(content))
-                        {
-                            var channel = discordSocketClient.GetChannel(discordGamelogChannelID) as IMessageChannel;
-
-                            if (channel != null)
-                                await channel.SendMessageAsync(content.Trim());
-
-                            response.StatusCode = 200;
-                        }
-
-                    }
-
-                    response.Close();
+                    ctx.Response.StatusCode = 200;
                 }
             });
+
+            //Run kestrel
+            _ = Task.Run(() => app.RunAsync());
         }
     }
 }
