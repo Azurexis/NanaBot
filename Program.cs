@@ -61,6 +61,10 @@ namespace NanaBot
 
         private async Task Discord_HandleMessageAsync(SocketMessage _message)
         {
+            //Bot mentioned -> Respond with Nana-ish
+            if (_message.MentionedUsers.Any(u => u.Id == discordSocketClient.CurrentUser.Id))
+                await _message.Channel.SendMessageAsync("Nana!!");
+
             //Don't process own messages
             if (_message.Author.Id == discordSocketClient.CurrentUser.Id)
                 return;
