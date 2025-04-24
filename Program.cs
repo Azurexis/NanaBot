@@ -78,9 +78,6 @@ namespace NanaBot
 
                 //Send message
                 await _message.Channel.SendMessageAsync(_pingReplies[_rng.Next(_pingReplies.Length)]);
-
-                //Return
-                return;
             }
 
             //Don't process own messages
