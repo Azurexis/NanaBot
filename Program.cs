@@ -64,8 +64,18 @@ namespace NanaBot
             //Bot mentioned -> Respond with Nana-ish
             if (_message.MentionedUsers.Any(u => u.Id == discordSocketClient.CurrentUser.Id))
             {
+                //Check if the message is a question
+                bool isQuestion = _message.Content.Trim().EndsWith('?');
+
                 //Random messages
-                string[] _pingReplies = new string[]
+                string[] _pingReplies = isQuestion
+                ?
+                new string[]
+                {
+                    "Nana! (Yes)",
+                    "Nana. (No)"
+                }
+                : new string[]
                 {
                     "Nana.",
                     "Nana!!",
